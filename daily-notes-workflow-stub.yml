@@ -1,0 +1,24 @@
+name: Daily Brewbox Note
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 08:00 CST = 00:00 UTC
+  workflow_dispatch:
+
+jobs:
+  generate-note:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: node scripts/fetch-note.js
+        env:
+          COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
+          COZE_BOT_ID: ${{ secrets.COZE_BOT_ID }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: daily note update [skip ci]"
+          file_pattern: data/notes.json
