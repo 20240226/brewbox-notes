@@ -1,0 +1,26 @@
+name: 每日笔记生成
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+jobs:
+  generate-note:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: 安装依赖
+        run: npm install
+      - name: 生成笔记
+        run: node scripts/fetch-note.js
+        env:
+          COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
+      - name: 提交并推送
+        run: |
+          git config user.name "BrewBox Bot"
+          git config user.email "bot@brewbox.coffee"
+          git add data/notes.json public/
+          git diff --quiet && git diff --staged --quiet || git commit -m "📝 每日笔记自动更新 $(date +'%Y-%m-%d')"
+          git push
