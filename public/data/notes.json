@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1710528000000,
+    "date": "2026-07-16",
+    "weekday": "Thursday",
+    "prompt": "Share a fun fact about coffee or tea culture.",
+    "content": "☕ **Did you know?** The world's most expensive coffee, Kopi Luwak, comes from coffee beans eaten and excreted by civet cats. The fermentation process in the animal's digestive tract gives it a unique flavor. But don't worry — your daily brew is much more accessible!",
+    "createdAt": "2026-07-16T00:00:00.000Z"
+  },
+  {
+    "id": 1710614400000,
+    "date": "2026-07-15",
+    "weekday": "Wednesday",
+    "prompt": "Share a mid-week motivation quote with a brewing metaphor.",
+    "content": "💪 **Mid-week Brew**: \"Life happens, coffee helps.\" — Just like a good cup of coffee needs time to brew, great things take time to develop. You're halfway through the week — keep steeping!",
+    "createdAt": "2026-07-15T00:00:00.000Z"
+  }
+]

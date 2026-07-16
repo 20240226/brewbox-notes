@@ -50,6 +50,14 @@ function callCoze(prompt) {
   });
 }
 
+/** Write notes.json to a given directory */
+function writeNotes(notes, dir) {
+  const notesPath = path.join(dir, 'notes.json');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(notesPath, JSON.stringify(notes, null, 2), 'utf-8');
+  console.log(`Wrote ${notes.length} notes to ${notesPath}`);
+}
+
 async function main() {
   const today = new Date();
   const dayName = WEEKDAYS[today.getDay()];
@@ -67,8 +75,9 @@ async function main() {
     content = `☕ **Brewbox Note (${dayName})**\n\nFailed to generate note. Error: ${err.message}\n\n_Try re-running the workflow manually._`;
   }
 
-  // Read existing notes
-  const notesPath = path.join(__dirname, '..', 'data', 'notes.json');
+  // Read existing notes from data/ (primary)
+  const notesDir = path.join(__dirname, '..', 'data');
+  const notesPath = path.join(notesDir, 'notes.json');
   let notes = [];
   try {
     notes = JSON.parse(fs.readFileSync(notesPath, 'utf-8'));
@@ -88,8 +97,12 @@ async function main() {
   // Keep only last 365 days
   if (notes.length > 365) notes = notes.slice(-365);
 
-  fs.writeFileSync(notesPath, JSON.stringify(notes, null, 2), 'utf-8');
-  console.log(`Wrote ${notes.length} notes to data/notes.json`);
+  // Write to data/ (source of truth for cron / Express)
+  writeNotes(notes, notesDir);
+
+  // Also write to public/data/ (for Vercel static serving)
+  const publicDataDir = path.join(__dirname, '..', 'public', 'data');
+  writeNotes(notes, publicDataDir);
 }
 
 main().catch(console.error);
