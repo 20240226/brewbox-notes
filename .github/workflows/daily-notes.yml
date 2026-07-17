@@ -9,13 +9,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
       - name: 安装依赖
-        run: npm install sharp node-fetch@2
-      - name: 生成笔记+封面+部署到Surge
+        run: npm install sharp node-fetch
+      - name: 生成笔记+封面
         run: node scripts/daily.js
         env:
           COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
