@@ -43,6 +43,27 @@
     .loading { text-align: center; padding: 2rem; color: var(--muted); }
     .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #334; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 0.5rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Cover Gallery ── */
+    .cover-gallery { background: var(--card); border-radius: 16px; padding: 1.5rem; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3); text-align: center; }
+    .cover-gallery h3 { color: var(--accent); font-size: 1rem; margin-bottom: 1rem; }
+    .cover-gallery .main-cover { width: 100%; max-width: 340px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5); position: relative; }
+    .cover-gallery .main-cover img { width: 100%; display: block; }
+    .cover-gallery .main-cover .cv-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(233,69,96,0.85); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; line-height: 32px; text-align: center; transition: opacity .2s; z-index: 2; }
+    .cover-gallery .main-cover .cv-nav-btn:hover { opacity: 0.75; }
+    .cover-gallery .main-cover .cv-nav-btn.prev { left: 8px; }
+    .cover-gallery .main-cover .cv-nav-btn.next { right: 8px; }
+    .cover-gallery .thumbs { display: flex; gap: 6px; justify-content: center; margin: 12px auto 0; flex-wrap: wrap; }
+    .cover-gallery .thumbs .thumb { width: 48px; height: 64px; border-radius: 6px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color .2s, transform .2s, opacity .2s; opacity: 0.5; }
+    .cover-gallery .thumbs .thumb.active { border-color: var(--accent); transform: scale(1.1); opacity: 1; }
+    .cover-gallery .thumbs .thumb:hover { opacity: 0.85; }
+    .cover-gallery .thumbs .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cover-gallery .counter { color: var(--muted); font-size: 0.8rem; margin: 8px 0 12px; }
+    .cover-gallery .cv-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .cover-gallery .cv-actions button { padding: 0.5rem 1rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: opacity .2s; }
+    .cover-gallery .cv-actions button:hover { opacity: 0.85; }
+    .btn-cv-dl { background: #2ec4b6; color: #fff; }
+    .btn-cv-dl-all { background: transparent; color: #2ec4b6; border: 1px solid #2ec4b6 !important; }
   </style>
 </head>
 <body>
@@ -79,6 +100,28 @@
           <button class="btn-cover" onclick="generateCover()">🖼 Save Cover</button>
         </div>
       </div>
+
+      <!-- Cover Gallery (5 covers from daily.js) -->
+      <div class="cover-gallery" id="coverGallery">
+        <h3>🖼️ 小红书封面图</h3>
+        <div class="main-cover" id="cvMainCover">
+          <button class="cv-nav-btn prev" onclick="cvPrev()">‹</button>
+          <img id="cvMainImg" src="notes/cover-1.png" alt="封面" onerror="this.parentElement.style.display='none'">
+          <button class="cv-nav-btn next" onclick="cvNext()">›</button>
+        </div>
+        <div class="counter" id="cvCounter">1 / 5</div>
+        <div class="thumbs" id="cvThumbs">
+          <div class="thumb active" onclick="cvShow(0)"><img src="notes/cover-1.png" alt="1" onerror="this.parentElement.style.display='none'"></div>
+          <div class="thumb" onclick="cvShow(1)"><img src="notes/cover-2.png" alt="2" onerror="this.parentElement.style.display='none'"></div>
+          <div class="thumb" onclick="cvShow(2)"><img src="notes/cover-3.png" alt="3" onerror="this.parentElement.style.display='none'"></div>
+          <div class="thumb" onclick="cvShow(3)"><img src="notes/cover-4.png" alt="4" onerror="this.parentElement.style.display='none'"></div>
+          <div class="thumb" onclick="cvShow(4)"><img src="notes/cover-5.png" alt="5" onerror="this.parentElement.style.display='none'"></div>
+        </div>
+        <div class="cv-actions">
+          <button class="btn-cv-dl" onclick="cvDownload()">⬇ 下载当前</button>
+          <button class="btn-cv-dl-all" onclick="cvDownloadAll()">⬇ 下载全部 5 张</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -88,6 +131,12 @@
     let notes = [];
     let currentIndex = 0;
     const PASSWORD = 'brewbox2024';
+
+    // Cover gallery state
+    let cvCurrent = 0;
+    const CV_TOTAL = 5;
+    const CV_NAMES = [];
+    for (let i = 1; i <= CV_TOTAL; i++) CV_NAMES.push('notes/cover-' + i + '.png');
 
     /** Simple Markdown-to-HTML converter */
     function mdToHtml(text) {
@@ -148,10 +197,12 @@
           document.getElementById('loadingScreen').style.display = 'none';
           document.getElementById('noteScreen').style.display = 'block';
           showNote();
+          initCoverGallery();
         }).catch(() => {
           document.getElementById('loadingScreen').style.display = 'none';
           document.getElementById('noteScreen').style.display = 'block';
           showNote();
+          initCoverGallery();
         });
       } else {
         document.getElementById('lockError').textContent = '❌ Incorrect password';
@@ -221,6 +272,67 @@
       }
     }
 
+    /* ── Cover Gallery Functions ────────────────────────────── */
+
+    function initCoverGallery() {
+      // Hide gallery if no covers found
+      const img = document.getElementById('cvMainImg');
+      if (!img || img.naturalWidth === 0) {
+        // Image may not have loaded yet — check after a small delay
+        setTimeout(checkCovers, 500);
+      }
+    }
+
+    function checkCovers() {
+      const img = document.getElementById('cvMainImg');
+      if (img && (img.naturalWidth === 0 || img.naturalHeight === 0)) {
+        // Try to load — if still fails, hide the section
+        const test = new Image();
+        test.onload = () => { /* covers exist, show */ };
+        test.onerror = () => {
+          document.getElementById('coverGallery').style.display = 'none';
+        };
+        test.src = 'notes/cover-1.png?' + Date.now();
+      }
+    }
+
+    function cvShow(i) {
+      cvCurrent = i;
+      document.getElementById('cvMainImg').src = CV_NAMES[i];
+      document.getElementById('cvCounter').textContent = (i + 1) + ' / ' + CV_TOTAL;
+      const thumbs = document.querySelectorAll('#cvThumbs .thumb');
+      thumbs.forEach((t, idx) => t.classList.toggle('active', idx === i));
+    }
+
+    function cvPrev() { cvShow((cvCurrent - 1 + CV_TOTAL) % CV_TOTAL); }
+    function cvNext() { cvShow((cvCurrent + 1) % CV_TOTAL); }
+
+    function cvDownload() {
+      const a = document.createElement('a');
+      a.href = CV_NAMES[cvCurrent];
+      a.download = 'brewbox-cover-' + (cvCurrent + 1) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast('✅ 开始下载封面 ' + (cvCurrent + 1));
+    }
+
+    function cvDownloadAll() {
+      for (let i = 0; i < CV_TOTAL; i++) {
+        setTimeout(() => {
+          const a = document.createElement('a');
+          a.href = CV_NAMES[i];
+          a.download = 'brewbox-cover-' + (i + 1) + '.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, i * 300);
+      }
+      toast('✅ 开始下载全部 5 张封面');
+    }
+
+    /* ── Toast ──────────────────────────────────────────────── */
+
     function toast(msg) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -231,6 +343,14 @@
     // Enter key on password input
     document.getElementById('passwordInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') unlock();
+    });
+
+    // Keyboard navigation for covers
+    document.addEventListener('keydown', (e) => {
+      if (document.getElementById('noteScreen').style.display === 'block') {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); cvPrev(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); cvNext(); }
+      }
     });
   </script>
 </body>
