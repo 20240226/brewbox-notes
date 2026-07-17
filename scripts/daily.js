@@ -24,7 +24,9 @@ async function main() {
   });
   const data = await resp.json();
   let content = data.answer || '';
-  if (!content && data.data) content = data.data[0].content || '';
+  if (!content && data.data && data.data.messages && data.data.messages.length > 0) {
+    content = data.data.messages[0].content || "";
+  }
   const m = content.match(/\{[\s\S]*\}/);
   const note = m ? JSON.parse(m[0]) : { title: '每日咖啡', body: content, tags: ['咖啡'] };
   console.log('文案: ' + note.title);
