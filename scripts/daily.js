@@ -109,7 +109,7 @@ async function fetchNote() {
     + '1. 调用通义万相（步骤名：generateImage 或 text_to_image）生成5张咖啡相关封面图\n'
     + '2. 获取每张图片的真实URL（必须是https://开头的图片直链）\n'
     + '3. 撰写一篇小红书风格的咖啡笔记，包含标题、正文（带emoji）、标签\n'
-    + '4. 只返回以下纯JSON格式，不要markdown代码块，不要其他任何文字：\n'
+    + '4. 要先出图再返回以下纯JSON格式，不要markdown代码块，不要其他任何文字：\n'
     + '{"title":"4-6字标题","body":"正文带emoji\\n多行用\\n分隔","tags":["tag1","tag2","tag3"],"images":["https://图片1真实URL","https://图片2真实URL","https://图片3真实URL","https://图片4真实URL","https://图片5真实URL"]}';
 
   const resp = await fetch('https://api.coze.cn/v3/chat', {
