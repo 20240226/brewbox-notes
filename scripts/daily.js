@@ -7,33 +7,188 @@ const SURGE_TOKEN = process.env.SURGE_TOKEN;
 const PUBLIC_DIR = '/home/runner/work/brewbox-notes/brewbox-notes/public';
 const NOTES_DIR = PUBLIC_DIR + '/notes';
 
+// 从任意文本中提取图片URL列表（兼容多种格式）
+function extractImageUrls(text) {
+  var urls = [];
+
+  if (!text || typeof text !== 'string') return urls;
+
+  // 1. 尝试整体解析为JSON
+  try {
+    var parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      parsed.forEach(function(item) {
+        if (typeof item === 'string' && item.indexOf('http') === 0) urls.push(item);
+      });
+      if (urls.length > 0) return urls;
+    }
+    if (typeof parsed === 'object' && parsed !== null) {
+      // images 字段
+      if (parsed.images && Array.isArray(parsed.images)) {
+        parsed.images.forEach(function(item) {
+          if (typeof item === 'string' && item.indexOf('http') === 0) urls.push(item);
+        });
+        if (urls.length > 0) return urls;
+      }
+      // image_urls 字段
+      if (parsed.image_urls && Array.isArray(parsed.image_urls)) {
+        parsed.image_urls.forEach(function(item) {
+          if (typeof item === 'string' && item.indexOf('http') === 0) urls.push(item);
+        });
+        if (urls.length > 0) return urls;
+      }
+      // data.images 或 result.images
+      if (parsed.data && parsed.data.images && Array.isArray(parsed.data.images)) {
+        parsed.data.images.forEach(function(item) {
+          if (typeof item === 'string' && item.indexOf('http') === 0) urls.push(item);
+        });
+        if (urls.length > 0) return urls;
+      }
+    }
+  } catch(e) {
+    // not JSON, continue
+  }
+
+  // 2. 从字符串中提取 {...} JSON 对象并解析
+  var jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      var obj = JSON.parse(jsonMatch[0]);
+      if (obj.images && Array.isArray(obj.images)) {
+        obj.images.forEach(function(item) {
+          if (typeof item === 'string' && item.indexOf('http') === 0) urls.push(item);
+        });
+        if (urls.length > 0) return urls;
+      }
+    } catch(e) {
+      // continue
+    }
+  }
+
+  // 3. 提取 markdown 图片语法 ![alt](url)
+  var mdImgRe = /!\[.*?\]\((https?:\/\/[^\s)]+)\)/g;
+  var mdMatch;
+  while ((mdMatch = mdImgRe.exec(text)) !== null) {
+    var u = mdMatch[1].replace(/[\)\s]+$/, '');
+    if (urls.indexOf(u) === -1) urls.push(u);
+  }
+  if (urls.length > 0) return urls;
+
+  // 4. 提取纯文本 http URL（图片扩展名优先）
+  var urlRe = /https?:\/\/[^\s"'`,，。；;）\)\]\}]+/g;
+  var urlMatch;
+  while ((urlMatch = urlRe.exec(text)) !== null) {
+    var rawUrl = urlMatch[0].replace(/[\)\]\}]+$/, '');
+    if (rawUrl.indexOf('http') === 0 && urls.indexOf(rawUrl) === -1) {
+      // 优先收集图片格式的URL
+      if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i.test(rawUrl)) {
+        urls.push(rawUrl);
+      }
+    }
+  }
+  // 如果找到图片URL，返回
+  if (urls.length > 0) return urls;
+
+  // 5. 全部URL（包括非图片后缀）
+  urlRe.lastIndex = 0;
+  while ((urlMatch = urlRe.exec(text)) !== null) {
+    var anyUrl = urlMatch[0].replace(/[\)\]\}]+$/, '');
+    if (anyUrl.indexOf('http') === 0 && urls.indexOf(anyUrl) === -1) {
+      urls.push(anyUrl);
+    }
+  }
+
+  return urls;
+}
+
 async function fetchNote() {
   console.log('调用Coze Bot（含通义万相5张图）...');
+
+  // 更明确的prompt：要求通义万相实际出图并返回真实URL
+  var queryStr = '请按以下步骤执行：\n'
+    + '1. 调用通义万相（步骤名：generateImage 或 text_to_image）生成5张咖啡相关封面图\n'
+    + '2. 获取每张图片的真实URL（必须是https://开头的图片直链）\n'
+    + '3. 撰写一篇小红书风格的咖啡笔记，包含标题、正文（带emoji）、标签\n'
+    + '4. 只返回以下纯JSON格式，不要markdown代码块，不要其他任何文字：\n'
+    + '{"title":"4-6字标题","body":"正文带emoji\\n多行用\\n分隔","tags":["tag1","tag2","tag3"],"images":["https://图片1真实URL","https://图片2真实URL","https://图片3真实URL","https://图片4真实URL","https://图片5真实URL"]}';
+
   const resp = await fetch('https://api.coze.cn/v3/chat', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + COZE_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       bot_id: BOT_ID,
       user_id: 'brewbox_auto',
-      query: '生成一篇小红书咖啡笔记，并调用通义万相生成5张封面图。只返回JSON：{"title":"4-6字标题","body":"正文带emoji","tags":["tag1","tag2","tag3"],"images":["通义万相图1URL","图2URL","图3URL","图4URL","图5URL"]}',
+      query: queryStr,
       stream: false
     })
   });
   const data = await resp.json();
-  let content = data.answer || '';
-  if (!content && data.data) {
-    if (data.data.content) content = data.data.content;
+
+  // 从多种响应结构中提取文本内容
+  var content = '';
+  if (data.answer) {
+    content = data.answer;
+  } else if (data.data) {
+    if (typeof data.data === 'string') content = data.data;
+    else if (data.data.content) content = data.data.content;
     else if (data.data.answer) content = data.data.answer;
+    else if (data.data.output) content = data.data.output;
     else if (Array.isArray(data.data) && data.data[0] && data.data[0].content) content = data.data[0].content;
-    else if (data.data.messages && data.data.messages[0]) content = data.data.messages[0].content;
+    else if (data.data.messages && data.data.messages[0]) {
+      content = data.data.messages[0].content || data.data.messages[0].text || '';
+    }
+  } else if (data.choices && data.choices[0]) {
+    content = data.choices[0].message ? data.choices[0].message.content : (data.choices[0].text || '');
+  } else if (data.response) {
+    content = typeof data.response === 'string' ? data.response : JSON.stringify(data.response);
+  } else if (data.content) {
+    content = data.content;
   }
-  const m = content.match(/\{[\s\S]*\}/);
-  if (!m) return { title: '今日咖啡', body: content, tags: ['咖啡'], images: [] };
-  try {
-    return JSON.parse(m[0]);
-  } catch(e) {
-    return { title: '今日咖啡', body: content, tags: ['咖啡'], images: [] };
+
+  if (!content) {
+    content = JSON.stringify(data);
+    console.log('警告：未找到标准响应字段，使用原始JSON');
   }
+
+  // 解析JSON主体
+  var title = '今日咖啡';
+  var body = content;
+  var tags = ['咖啡'];
+  var images = [];
+
+  // 尝试提取 {...} JSON
+  var jsonBlockMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonBlockMatch) {
+    try {
+      var parsed = JSON.parse(jsonBlockMatch[0]);
+      if (parsed.title) title = parsed.title;
+      if (parsed.body) body = parsed.body;
+      if (parsed.tags && Array.isArray(parsed.tags)) tags = parsed.tags;
+      if (parsed.images && Array.isArray(parsed.images)) {
+        images = parsed.images.filter(function(img) {
+          return typeof img === 'string' && img.indexOf('http') === 0;
+        });
+      }
+    } catch(e) {
+      console.log('JSON解析失败，尝试其他方式提取图片: ' + e.message);
+    }
+  }
+
+  // 如果JSON解析没拿到图片，用通用提取器
+  if (images.length === 0) {
+    images = extractImageUrls(content);
+    console.log('通用提取图片: ' + images.length + ' 张');
+  }
+
+  console.log('文案: ' + title);
+  console.log('图片数量: ' + images.length);
+  if (images.length > 0) {
+    images.forEach(function(url, idx) {
+      console.log('  图' + (idx+1) + ': ' + url.substring(0, 80));
+    });
+  }
+
+  return { title: title, body: body, tags: tags, images: images };
 }
 
 function downloadImage(url, filepath) {
@@ -59,10 +214,8 @@ async function main() {
 
   // 1. 从Coze拿文案+通义万相5张图URL
   var note = await fetchNote();
-  console.log('文案: ' + note.title);
-  console.log('图片数量: ' + (note.images ? note.images.length : 0));
 
-  // 2. 下载5张封面图
+  // 2. 下载封面图
   var downloadedImages = [];
   if (note.images && note.images.length > 0) {
     for (var i = 0; i < note.images.length; i++) {
