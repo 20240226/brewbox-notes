@@ -4,25 +4,20 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 jobs:
-  generate-note:
-  permissions:
-      contents: write
+  generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
           node-version: 18
       - name: 安装依赖
-        run: npm install
-      - name: 生成笔记
-        run: node scripts/fetch-note.js
+        run: npm install sharp node-fetch@2
+      - name: 生成笔记+封面+部署到Surge
+        run: node scripts/daily.js
         env:
           COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
-      - name: 提交并推送
-        run: |
-          git config user.name "BrewBox Bot"
-          git config user.email "bot@brewbox.coffee"
-          git add data/notes.json public/
-          git diff --quiet && git diff --staged --quiet || git commit -m "📝 每日笔记自动更新 $(date +'%Y-%m-%d')"
-          git push
+          SURGE_LOGIN: marsolzinc@gmail.com
+          SURGE_TOKEN: faeec40b76ba6d66efeda93eddbc7314
