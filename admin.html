@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>管理后台 — BrewBox</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'PingFang SC','Microsoft YaHei',sans-serif}
+body{background:#1C1512;color:#E8DCC8;padding:20px}
+h1{text-align:center;color:#C8956C;font-size:24px;margin-bottom:4px}
+h1 span{color:#E8DCC8}
+.sub{text-align:center;color:#8A7A6A;font-size:14px;margin-bottom:24px}
+#login{max-width:360px;margin:80px auto;background:rgba(255,255,255,0.03);border:1px solid rgba(200,149,108,0.15);border-radius:16px;padding:32px;text-align:center}
+#login h2{color:#C8956C;font-size:18px;margin-bottom:16px}
+#login input{width:100%;padding:14px;border-radius:8px;border:1px solid rgba(200,149,108,0.2);background:rgba(255,255,255,0.05);color:#E8DCC8;font-size:15px;outline:none;margin-bottom:12px;text-align:center}
+#login .btn{width:100%;background:#C8956C;color:#1C1512;border:none;padding:14px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer}
+#login .err{color:#E74C3C;font-size:13px;display:none;margin-top:8px}
+#main{display:none}
+table{width:100%;border-collapse:collapse;background:rgba(255,255,255,0.02);border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid rgba(200,149,108,0.08);font-size:12px}
+th{background:rgba(200,149,108,0.1);color:#C8956C;font-weight:700}
+td{color:#C8B8A8}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge.active{background:rgba(76,175,80,0.15);color:#4CAF50}
+.badge.expired{background:rgba(158,158,158,0.15);color:#9E9E9E}
+.stat{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.stat-card{flex:1;min-width:140px;background:rgba(255,255,255,0.03);border:1px solid rgba(200,149,108,0.1);border-radius:12px;padding:20px;text-align:center}
+.stat-card .num{font-size:28px;font-weight:900;color:#C8956C}
+.stat-card .label{font-size:12px;color:#8A7A6A;margin-top:4px}
+.tab-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tab{background:rgba(255,255,255,0.05);border:1px solid rgba(200,149,108,0.15);color:#C8B8A8;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px}
+.tab.active{background:rgba(200,149,108,0.15);color:#C8956C;font-weight:600}
+.pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px}
+.pagination .page-btn{background:rgba(200,149,108,0.1);color:#C8956C;border:1px solid rgba(200,149,108,0.2);padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+.pagination .page-btn:hover{background:rgba(200,149,108,0.2)}
+.pagination .page-btn:disabled{opacity:0.3;cursor:default}
+.pagination .page-info{color:#C8B8A8;font-size:13px}
+.back{display:block;text-align:center;margin-top:20px;color:#8A7A6A;font-size:13px;text-decoration:none}
+@media(max-width:600px){th,td{padding:6px 8px;font-size:11px}}
+</style>
+</head>
+<body>
+<h1>☕ Brew<span>Box</span></h1>
+
+
+<div id="login">
+<h2>🔐 需要密码</h2>
+<input type="password" id="pwd" placeholder="输入管理密码">
+<div class="err" id="err">密码错误</div>
+<button class="btn" id="loginBtn">登录</button>
+</div>
+
+<div id="main">
+<div class="stat">
+<div class="stat-card"><div class="num" id="totalCust">0</div><div class="label">客户总数</div></div>
+<div class="stat-card"><div class="num" id="activeSub">0</div><div class="label">活跃订阅</div></div>
+<div class="stat-card"><div class="num" id="totalSubs">0</div><div class="label">小报订阅</div></div>
+</div>
+
+<div class="tab-bar">
+<span class="tab active" data-tab="customers">客户信息</span>
+<span class="tab" data-tab="subscriptions">订阅记录</span>
+<span class="tab" data-tab="subscribers">小报订阅</span>
+</div>
+
+<div id="tableContainer"><div class="loading" style="text-align:center;color:#C8B8A8;padding:40px">加载中...</div></div>
+
+<div class="pagination" id="pagination" style="display:none">
+<button class="page-btn" id="prevBtn" onclick="prevPage()">← 上一页</button>
+<span class="page-info" id="pageInfo">第 1 页 / 共 1 页</span>
+<button class="page-btn" id="nextBtn" onclick="nextPage()">下一页 →</button>
+</div>
+
+<a href="/" class="back">← 返回首页</a>
+</div>
+
+<script>
+var SUPABASE_URL='https://npsgvmtblisrtrmhirka.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wc2d2bXRibGlzcnRybWhpcmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNTUxNjksImV4cCI6MjA5OTgzMTE2OX0.0G9Nr2Tb3QQUQJsaB1QcpZWpl5bG0Os35kJY34wE6DA';
+var PAGE_SIZE=20;
+var currentTab='customers';
+var pages={customers:{page:0,total:0,data:[]},subscriptions:{page:0,total:0,data:[]},subscribers:{page:0,total:0,data:[]}};
+var totals={customers:0,subscriptions:0,subscribers:0};
+
+document.addEventListener('DOMContentLoaded',function(){
+ document.getElementById('loginBtn').addEventListener('click',login);
+ document.getElementById('pwd').addEventListener('keydown',function(e){if(e.key==='Enter')login();});
+ document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){switchTab(this.dataset.tab);});});
+});
+
+function login(){
+ var pwd=document.getElementById('pwd').value;
+ if(pwd!=='brewbox2024'){document.getElementById('err').style.display='block';return;}
+ document.getElementById('login').style.display='none';
+ document.getElementById('main').style.display='block';
+ loadAll();
+}
+
+function loadAll(){
+ Promise.all([
+  fetch(SUPABASE_URL+'/rest/v1/customers?select=count',{headers:{'apikey':SUPABASE_KEY,'Prefer':'count=exact'}}).then(function(r){return r.json();}).then(function(d){totals.customers=d[0]?.count||0;}).catch(function(){totals.customers=0;}),
+  fetch(SUPABASE_URL+'/rest/v1/subscriptions?select=count',{headers:{'apikey':SUPABASE_KEY,'Prefer':'count=exact'}}).then(function(r){return r.json();}).then(function(d){totals.subscriptions=d[0]?.count||0;}).catch(function(){totals.subscriptions=0;}),
+  fetch(SUPABASE_URL+'/rest/v1/subscribers?select=count',{headers:{'apikey':SUPABASE_KEY,'Prefer':'count=exact'}}).then(function(r){return r.json();}).then(function(d){totals.subscribers=d[0]?.count||0;}).catch(function(){totals.subscribers=0;})
+ ]).then(function(){
+  document.getElementById('totalCust').textContent=totals.customers;
+  document.getElementById('activeSub').textContent=totals.subscriptions;
+  document.getElementById('totalSubs').textContent=totals.subscribers;
+  loadPage('customers',0);
+ });
+}
+
+function loadPage(tab,page){
+ currentTab=tab;
+ document.getElementById('tableContainer').innerHTML='<div style="text-align:center;color:#C8B8A8;padding:40px">加载中...</div>';
+ var tableName=tab==='customers'?'customers':tab==='subscriptions'?'subscriptions':'subscribers';
+ var order=tab==='subscriptions'?'start_date.desc':'created_at.desc';
+ var start=page*PAGE_SIZE;
+ var end=start+PAGE_SIZE-1;
+
+ fetch(SUPABASE_URL+'/rest/v1/'+tableName+'?order='+order,{
+  headers:{'apikey':SUPABASE_KEY,'Range':start+'-'+end,'Range-Unit':'items','Prefer':'count=exact'}
+ }).then(function(r){
+  var total=parseInt(r.headers.get('content-range')?.split('/')[1]||'0');
+  return r.json().then(function(data){
+   pages[tab]={page:page,total:total,data:Array.isArray(data)?data:[]};
+   renderTable(tab);
+   updatePagination(tab);
+  });
+ }).catch(function(){
+  document.getElementById('tableContainer').innerHTML='<div style="text-align:center;color:#E74C3C;padding:40px">加载失败</div>';
+ });
+}
+
+function renderTable(tab){
+ var p=pages[tab];
+ var d=p.data;
+ if(!d||d.length===0){document.getElementById('tableContainer').innerHTML='<div style="text-align:center;color:#C8B8A8;padding:40px">暂无数据</div>';return;}
+ 
+ if(tab==='customers'){
+  var h='<table><tr><th>邮箱</th><th>微信</th><th>地址</th><th>烘焙度</th><th>研磨度</th><th>风味</th><th>提交时间</th></tr>';
+  d.forEach(function(c){h+='<tr><td>'+(c.email||'')+'</td><td>'+(c.wechat||'')+'</td><td>'+(c.address||'')+'</td><td>'+(c.roast||'')+'</td><td>'+(c.grind||'')+'</td><td>'+(c.flavor||'')+'</td><td>'+(c.created_at?new Date(c.created_at).toLocaleDateString('zh-CN'):'')+'</td></tr>';});
+  h+='</table>';document.getElementById('tableContainer').innerHTML=h;
+ }
+ else if(tab==='subscriptions'){
+  var h='<table><tr><th>邮箱</th><th>套餐</th><th>状态</th><th>地址</th><th>开始</th><th>到期</th></tr>';
+  d.forEach(function(s){
+   var b=s.status==='active'?'<span class="badge active">进行中</span>':'<span class="badge expired">已过期</span>';
+   h+='<tr><td>'+(s.email||'')+'</td><td>'+(s.plan||'')+'</td><td>'+b+'</td><td>'+(s.address||'')+'</td><td>'+(s.start_date?new Date(s.start_date).toLocaleDateString('zh-CN'):'')+'</td><td>'+(s.end_date?new Date(s.end_date).toLocaleDateString('zh-CN'):'')+'</td></tr>';
+  });
+  h+='</table>';document.getElementById('tableContainer').innerHTML=h;
+ }
+ else if(tab==='subscribers'){
+  var h='<table><tr><th>邮箱</th><th>来源</th><th>订阅时间</th></tr>';
+  d.forEach(function(s){h+='<tr><td>'+(s.email||'')+'</td><td>'+(s.source||'')+'</td><td>'+(s.created_at?new Date(s.created_at).toLocaleDateString('zh-CN'):'')+'</td></tr>';});
+  h+='</table>';document.getElementById('tableContainer').innerHTML=h;
+ }
+}
+
+function updatePagination(tab){
+ var p=pages[tab];
+ var totalPages=Math.ceil(p.total/PAGE_SIZE)||1;
+ document.getElementById('pageInfo').textContent='第 '+(p.page+1)+' 页 / 共 '+totalPages+' 页';
+ document.getElementById('prevBtn').disabled=p.page<=0;
+ document.getElementById('nextBtn').disabled=p.page>=totalPages-1;
+ document.getElementById('pagination').style.display='flex';
+}
+
+function prevPage(){
+ var tab=currentTab;
+ var p=pages[tab];
+ if(p.page>0) loadPage(tab,p.page-1);
+}
+
+function nextPage(){
+ var tab=currentTab;
+ var p=pages[tab];
+ var totalPages=Math.ceil(p.total/PAGE_SIZE)||1;
+ if(p.page<totalPages-1) loadPage(tab,p.page+1);
+}
+
+function switchTab(tab){
+ document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+ document.querySelector('.tab[data-tab="'+tab+'"]').classList.add('active');
+ if(!pages[tab].data||pages[tab].data.length===0){
+  loadPage(tab,0);
+ }else{
+  currentTab=tab;
+  renderTable(tab);
+  updatePagination(tab);
+ }
+}
+</script>
+</body>
+</html>
