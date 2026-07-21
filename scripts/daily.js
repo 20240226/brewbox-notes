@@ -305,7 +305,7 @@ async function main() {
 
   // 5. 部署到Surge
   console.log('部署到Surge...');
-  execSync('npx surge --project ' + PUBLIC_DIR + ' --domain brewbox-coffee.surge.sh --token ' + SURGE_TOKEN, { timeout: 30000, stdio: 'inherit' });
+  execSync('npx surge --project ' + NOTES_DIR + ' --domain brewbox-coffee.surge.sh/notes --token ' + SURGE_TOKEN, { timeout: 30000, stdio: 'inherit' });
   console.log('完成! https://brewbox-coffee.surge.sh/notes/');
 }
 
